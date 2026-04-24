@@ -8,6 +8,7 @@ import {
   register,
   resetPassword,
   signIn,
+  solarproSso,
   type AuthUser,
 } from '../api/client';
 
@@ -66,6 +67,7 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   signInWithPassword: (identifier: string, password: string) => Promise<void>;
+  signInWithSolarPro: (token: string) => Promise<void>;
   registerWithPassword: (email: string, password: string, fullName: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ message: string; resetToken?: string; expiresInMinutes?: number }>;
   completePasswordReset: (email: string, token: string, newPassword: string) => Promise<{ message: string }>;
@@ -209,6 +211,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(result.user);
   }, [scheduleRefresh]);
 
+  const signInWithSolarPro = useCallback(async (token: string) => {
+    const result = await solarproSso(token);
+    await setStoredToken(result.token);
+    if (result.refreshToken) {
+      await setStoredRefreshToken(result.refreshToken);
+      refreshTokenRef.current = result.refreshToken;
+      scheduleRefresh(result.token, result.refreshToken);
+    }
+    setToken(result.token);
+    setUser(result.user);
+  }, [scheduleRefresh]);
+
   const registerWithPassword = useCallback(async (email: string, password: string, fullName: string) => {
     const result = await register({ email, password, fullName });
     await setStoredToken(result.token);
@@ -240,6 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       loading,
       signInWithPassword,
+      signInWithSolarPro,
       registerWithPassword,
       requestPasswordReset,
       completePasswordReset,
@@ -250,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       loading,
       signInWithPassword,
+      signInWithSolarPro,
       registerWithPassword,
       requestPasswordReset,
       completePasswordReset,

@@ -702,3 +702,32 @@ export async function submitBugReport(input: {
 
   return handleResponse<BugReportResponse>(res);
 }
+
+// ----------------------------------------------------------------
+// SolarPro SSO
+// ----------------------------------------------------------------
+
+export interface SolarProSsoResponse {
+  token: string;
+  refreshToken: string;
+  user: AuthUser & {
+    solarpro_user_id: string | null;
+    solarpro_project_id: string | null;
+  };
+}
+
+/**
+ * Exchange a SolarPro mobile-session JWT for a partner session.
+ * Called after the app catches the sitesurvey://login?token=<jwt> deep link.
+ *
+ * POST /api/users/solarpro-sso
+ * { token: <jwt signed with SOLARPRO_HANDOFF_SECRET> }
+ */
+export async function solarproSso(token: string): Promise<SolarProSsoResponse> {
+  const res = await fetchWithFallback('/api/users/solarpro-sso', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  return handleResponse<SolarProSsoResponse>(res);
+}

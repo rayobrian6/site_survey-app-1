@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AppBootstrapProvider, useAppBootstrap } from '../src/context/AppBootstrapContext';
@@ -35,7 +35,34 @@ function BootstrapGate({ children }: { children: React.ReactNode }) {
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, loading, signInWithSolarPro } = useAuth();
+
+  // Handle sitesurvey://login?token=<jwt> deep links for SolarPro SSO
+  React.useEffect(() => {
+    async function handleDeepLink(url: string) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'sitesurvey:' && parsed.hostname === 'login') {
+          const token = parsed.searchParams.get('token');
+          if (token) {
+            await signInWithSolarPro(token);
+            router.replace('/');
+          }
+        }
+      } catch {
+        // Ignore malformed URLs
+      }
+    }
+
+    // Handle deep link that launched the app
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+
+    // Handle deep links while app is already open
+    const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => sub.remove();
+  }, [signInWithSolarPro, router]);
 
   React.useEffect(() => {
     if (loading) return;

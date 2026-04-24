@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -97,6 +98,21 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={styles.ssoButton}
+                onPress={() => Linking.openURL('https://solarpro.solutions/mobile-login')}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in with SolarPro account"
+              >
+                <Text style={styles.ssoButtonText}>☀️  Use SolarPro Account</Text>
+              </TouchableOpacity>
+
             <Text style={styles.hint}>Admin test login: admin / admin123!</Text>
             <Text style={styles.apiHint}>API: {API_URL}</Text>
           </View>
@@ -150,4 +166,36 @@ const styles = StyleSheet.create({
   linkText: { color: BRAND_PRIMARY, fontSize: 13, fontWeight: '600' },
   hint: { marginTop: 14, fontSize: 12, color: colors.textSecondary },
   apiHint: { marginTop: 6, fontSize: 11, color: colors.textMuted },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  ssoButton: {
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  ssoButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
