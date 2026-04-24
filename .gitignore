@@ -53,3 +53,8 @@ yarn-error.log*
 coverage/
 mobile/android/local.properties
 mobile/gradle-build.log
+
+# Frontend (web dashboard) — excluded from repo tracking
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

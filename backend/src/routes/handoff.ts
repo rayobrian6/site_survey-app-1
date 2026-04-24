@@ -129,6 +129,15 @@ router.get("/:token", async (req: Request, res: Response) => {
       throw error;
     }
 
+    if (decoded.solarpro_user_id) {
+      console.log("[HANDOFF OWNER]", {
+        solarpro_user_id: decoded.solarpro_user_id,
+        solarpro_project_id: decoded.solarpro_project_id,
+        solarpro_email: decoded.solarpro_email,
+        jti: decoded.jti,
+      });
+    }
+
     res.json({
       project_id: decoded.project_id,
       project_name: decoded.project_name ?? null,
@@ -144,6 +153,10 @@ router.get("/:token", async (req: Request, res: Response) => {
       gps_accuracy:
         typeof decoded.gps_accuracy === "number" ? decoded.gps_accuracy : null,
       metadata: decoded.metadata ?? null,
+      // F-06 ownership claims
+      solarpro_user_id: decoded.solarpro_user_id ?? null,
+      solarpro_project_id: decoded.solarpro_project_id ?? null,
+      solarpro_email: decoded.solarpro_email ?? null,
     });
   } catch (error) {
     console.error("GET /api/handoff/:token error:", error);

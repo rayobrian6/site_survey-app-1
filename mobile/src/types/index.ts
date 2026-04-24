@@ -127,6 +127,11 @@ export interface Survey {
   /** Hydrated relations — populated when loading a full survey */
   checklist: ChecklistItem[];
   photos: SurveyPhoto[];
+  // F-06 ownership claims from SolarPro handoff JWT
+  solarpro_user_id?: string | null;
+  solarpro_project_id?: string | null;
+  solarpro_email?: string | null;
+  solarpro_org_id?: string | null;
 }
 
 export type SurveyFormData = Omit<

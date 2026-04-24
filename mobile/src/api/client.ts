@@ -640,6 +640,10 @@ export interface HandoffPayload {
   longitude: number | null;
   gps_accuracy: number | null;
   metadata: Record<string, unknown> | null;
+  // F-06 ownership claims
+  solarpro_user_id: string | null;
+  solarpro_project_id: string | null;
+  solarpro_email: string | null;
 }
 
 export async function fetchHandoffToken(

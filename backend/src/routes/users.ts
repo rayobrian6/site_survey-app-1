@@ -556,6 +556,7 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
     solarpro_user_id?: string;
     solarpro_email?: string;
     solarpro_name?: string;
+    solarpro_project_id?: string;
     email?: string;
     name?: string;
     project_id?: string;
@@ -601,6 +602,16 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
       role: isAdmin ? 'admin' : 'user',
     });
     const refreshToken = await issueRefreshToken(user.id);
+
+    // F-06: log ownership claims received via SSO
+    if (decoded.solarpro_user_id) {
+      console.log('[SSO OWNER STORED]', {
+        solarpro_user_id: decoded.solarpro_user_id,
+        solarpro_project_id: decoded.solarpro_project_id,
+        solarpro_email: decoded.solarpro_email,
+        local_user_id: user.id,
+      });
+    }
 
     authAudit('users.solarpro-sso.success', req, user.email, { status: 200, userId: user.id });
 
