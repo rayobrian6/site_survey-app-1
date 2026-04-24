@@ -360,6 +360,15 @@ function getPredictionCount(inference: unknown): number {
   if (!inference || typeof inference !== "object") return 0;
   const root = inference as Record<string, unknown>;
 
+  // YOLOv8 vision service response shape (VisionInferenceResult)
+  if (typeof root.detectionCount === "number") {
+    return root.detectionCount;
+  }
+  if (Array.isArray(root.detections)) {
+    return root.detections.length;
+  }
+
+  // Legacy Roboflow response shape
   if (Array.isArray(root.predictions)) {
     return root.predictions.length;
   }
