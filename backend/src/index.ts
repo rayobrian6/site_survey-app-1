@@ -17,7 +17,7 @@ import multer from "multer";
 import surveysRouter from "./routes/surveys";
 import categoriesRouter from "./routes/categories";
 import usersRouter from "./routes/users";
-import roboflowProxyRouter from "./routes/roboflowProxy";
+import visionProxyRouter from "./routes/visionProxy";
 import handoffRouter from "./routes/handoff";
 import fallbackSurveyRouter from "./routes/fallbackSurvey";
 import openApiRouter from "./routes/openapi";
@@ -234,7 +234,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/handoff", handoffRouter);
 app.use("/api", openApiRouter);
 app.use("/api/bug-reports", requireAuth, bugReportsRouter);
-app.use("/api/roboflow", requireAuth, roboflowProxyRouter);
+app.use("/api/vision",   requireAuth, visionProxyRouter);
 
 // ----------------------------------------------------------------
 // 404

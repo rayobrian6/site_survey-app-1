@@ -17,7 +17,7 @@ import {
   dataUrlToBuffer,
   inferRoboflowFromBuffer,
   inferRoboflowFromPath,
-} from "../utils/roboflowClient";
+} from "../utils/yoloClient";
 import { uploadFile } from "../utils/storageClient";
 import {
   enqueueSurveyCompleteWebhook,
@@ -1972,7 +1972,7 @@ router.post(
 /**
  * POST /api/surveys/:id/photos/:photoId/infer
  *
- * Runs Roboflow inference against a stored survey photo.
+ * Runs vision inference against a stored survey photo.
  * Uses `file_path` when available and falls back to base64 `data_url`.
  *
  * Optional body:
@@ -2116,7 +2116,7 @@ router.post(
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unknown Roboflow error";
+        error instanceof Error ? error.message : "Unknown vision inference error";
       console.error(
         "POST /api/surveys/:id/photos/:photoId/infer error:",
         error,
