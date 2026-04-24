@@ -1,32 +1,9 @@
 import { Router, Request, Response } from "express";
-import { pool } from "../database";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { incrementMetric } from "../services/metrics";
+import { consumeJti } from "../services/tokenReplay";
 
 const router = Router();
-
-let usedTokensTableReady: Promise<void> | null = null;
-
-async function ensureUsedTokensTable(): Promise<void> {
-  if (!usedTokensTableReady) {
-    usedTokensTableReady = pool
-      .query(
-        `
-        CREATE TABLE IF NOT EXISTS used_handoff_tokens (
-          jti TEXT PRIMARY KEY,
-          used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `,
-      )
-      .then(() => undefined)
-      .catch((error) => {
-        usedTokensTableReady = null;
-        throw error;
-      });
-  }
-
-  await usedTokensTableReady;
-}
 
 type HandoffClaims = JwtPayload & {
   jti?: string;
@@ -42,6 +19,12 @@ type HandoffClaims = JwtPayload & {
   longitude?: number;
   gps_accuracy?: number;
   metadata?: unknown;
+  // F-06: Ownership routing claims — passed through to the mobile app so
+  // it can send them back when creating the survey record (Phase 2b).
+  solarpro_user_id?: string;
+  solarpro_project_id?: string;
+  solarpro_email?: string;
+  solarpro_name?: string;
 };
 
 router.get("/:token", async (req: Request, res: Response) => {
@@ -108,34 +91,32 @@ router.get("/:token", async (req: Request, res: Response) => {
       return;
     }
 
-    await ensureUsedTokensTable();
-
-    try {
-      await pool.query(`INSERT INTO used_handoff_tokens (jti) VALUES ($1)`, [
-        decoded.jti,
-      ]);
-    } catch (error) {
-      const err = error as { code?: string };
-      if (err.code === "23505") {
-        incrementMetric("handoff_replay_total");
-        res.status(409).json({
-          error: {
-            code: "HANDOFF_TOKEN_REPLAYED",
-            message: "Handoff token has already been used",
-          },
-        });
-        return;
-      }
-      throw error;
+    const replayResult = await consumeJti(decoded.jti, "handoff");
+    if (replayResult === "replayed") {
+      incrementMetric("handoff_replay_total");
+      res.status(409).json({
+        error: {
+          code: "HANDOFF_TOKEN_REPLAYED",
+          message: "Handoff token has already been used",
+        },
+      });
+      return;
+    }
+    if (replayResult === "error") {
+      res.status(500).json({
+        error: {
+          code: "HANDOFF_FAILED",
+          message: "Failed to validate handoff token (DB error)",
+        },
+      });
+      return;
     }
 
+    // F-06: [HANDOFF OWNER] log — confirms ownership claims arrived from SolarPro JWT
     if (decoded.solarpro_user_id) {
-      console.log("[HANDOFF OWNER]", {
-        solarpro_user_id: decoded.solarpro_user_id,
-        solarpro_project_id: decoded.solarpro_project_id,
-        solarpro_email: decoded.solarpro_email,
-        jti: decoded.jti,
-      });
+      console.log(
+        `[HANDOFF OWNER] consumed jti=${decoded.jti} solarpro_user_id=${decoded.solarpro_user_id} solarpro_project_id=${decoded.solarpro_project_id ?? 'null'}`,
+      );
     }
 
     res.json({
@@ -153,7 +134,8 @@ router.get("/:token", async (req: Request, res: Response) => {
       gps_accuracy:
         typeof decoded.gps_accuracy === "number" ? decoded.gps_accuracy : null,
       metadata: decoded.metadata ?? null,
-      // F-06 ownership claims
+      // F-06: Ownership routing — mobile app stores these on the survey record
+      // so the webhook payload carries them back to SolarPro for owner resolution.
       solarpro_user_id: decoded.solarpro_user_id ?? null,
       solarpro_project_id: decoded.solarpro_project_id ?? null,
       solarpro_email: decoded.solarpro_email ?? null,

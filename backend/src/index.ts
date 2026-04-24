@@ -244,9 +244,46 @@ app.use((_req, res) => {
 });
 
 // ----------------------------------------------------------------
+// Startup env validation (F-03: fail fast before any request is served)
+// ----------------------------------------------------------------
+function validateRequiredEnv(): void {
+  const REQUIRED: string[] = [
+    'SOLARPRO_WEBHOOK_URL',
+    'SURVEY_WEBHOOK_SECRET',
+    'SOLARPRO_HANDOFF_SECRET',
+    'JWT_SECRET',
+  ];
+  const missing = REQUIRED.filter((k) => !process.env[k]?.trim());
+  if (missing.length > 0) {
+    console.error(
+      `[STARTUP] FATAL: Missing required environment variables: ${missing.join(', ')}. ` +
+      'Set these before deploying to production.',
+    );
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+    // In dev/test: warn but continue so local dev without full config still works.
+    console.warn('[STARTUP] Continuing in non-production mode with missing env vars.');
+  }
+
+  // Validate SOLARPRO_HANDOFF_SECRET length (must be ≥32 chars — matches SolarPro minter requirement)
+  const handoffSecret = process.env.SOLARPRO_HANDOFF_SECRET?.trim() ?? '';
+  if (handoffSecret && handoffSecret.length < 32) {
+    console.error(
+      `[STARTUP] FATAL: SOLARPRO_HANDOFF_SECRET must be at least 32 characters ` +
+      `(currently ${handoffSecret.length}). SolarPro will reject tokens signed with a short secret.`,
+    );
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  }
+}
+
+// ----------------------------------------------------------------
 // Start server
 // ----------------------------------------------------------------
 if (require.main === module) {
+  validateRequiredEnv();
   app.listen(PORT, () => {
     console.log(`Site Survey API running on http://localhost:${PORT}`);
     console.log(`Photo uploads served from /uploads`);

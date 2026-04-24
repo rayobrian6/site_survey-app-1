@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { consumeJti } from "../services/tokenReplay";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { pool } from "../database";
 
@@ -20,29 +21,10 @@ type HandoffClaims = JwtPayload & {
   metadata?: unknown;
 };
 
-let usedTokensTableReady: Promise<void> | null = null;
+// used_handoff_tokens is managed by ../services/tokenReplay.ts
+// Use consumeJti() for all replay protection — do NOT touch the table directly.
+
 let fallbackTableReady: Promise<void> | null = null;
-
-async function ensureUsedTokensTable(): Promise<void> {
-  if (!usedTokensTableReady) {
-    usedTokensTableReady = pool
-      .query(
-        `
-        CREATE TABLE IF NOT EXISTS used_handoff_tokens (
-          jti TEXT PRIMARY KEY,
-          used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `,
-      )
-      .then(() => undefined)
-      .catch((error) => {
-        usedTokensTableReady = null;
-        throw error;
-      });
-  }
-
-  await usedTokensTableReady;
-}
 
 async function ensureFallbackSurveysTable(): Promise<void> {
   if (!fallbackTableReady) {
@@ -266,11 +248,23 @@ router.post("/api/fallback-surveys/submit", async (req: Request, res: Response) 
 
     const client = await pool.connect();
     try {
-      await client.query("BEGIN");
+      // Consume jti via shared tokenReplay service (outside transaction — 
+      // the unique constraint is the real guard; txn is for fallback_surveys insert).
+      const replayResult = await consumeJti(claims.jti, "fallback");
+      if (replayResult === "replayed") {
+        res.status(409).json({
+          error: {
+            code: "HANDOFF_TOKEN_REPLAYED",
+            message: "This handoff token has already been used",
+          },
+        });
+        return;
+      }
+      if (replayResult === "error") {
+        throw new Error("tokenReplay DB error");
+      }
 
-      await client.query(`INSERT INTO used_handoff_tokens (jti) VALUES ($1)`, [
-        claims.jti,
-      ]);
+      await client.query("BEGIN");
 
       const submittedFields = {
         project_name: req.body?.project_name ?? null,
@@ -315,16 +309,6 @@ router.post("/api/fallback-surveys/submit", async (req: Request, res: Response) 
       });
     } catch (error) {
       await client.query("ROLLBACK");
-      const err = error as { code?: string };
-      if (err.code === "23505") {
-        res.status(409).json({
-          error: {
-            code: "HANDOFF_TOKEN_REPLAYED",
-            message: "This handoff token has already been used",
-          },
-        });
-        return;
-      }
       throw error;
     } finally {
       client.release();

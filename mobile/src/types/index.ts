@@ -127,7 +127,7 @@ export interface Survey {
   /** Hydrated relations — populated when loading a full survey */
   checklist: ChecklistItem[];
   photos: SurveyPhoto[];
-  // F-06 ownership claims from SolarPro handoff JWT
+  // F-06: Ownership routing — from SolarPro handoff JWT claims
   solarpro_user_id?: string | null;
   solarpro_project_id?: string | null;
   solarpro_email?: string | null;

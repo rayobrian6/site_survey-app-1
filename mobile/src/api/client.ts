@@ -640,7 +640,7 @@ export interface HandoffPayload {
   longitude: number | null;
   gps_accuracy: number | null;
   metadata: Record<string, unknown> | null;
-  // F-06 ownership claims
+  // F-06: Ownership routing — returned from backend when handoff JWT has claims
   solarpro_user_id: string | null;
   solarpro_project_id: string | null;
   solarpro_email: string | null;

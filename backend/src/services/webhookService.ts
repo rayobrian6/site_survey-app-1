@@ -14,7 +14,9 @@ interface SurveyCompletePayload {
   inspector_name: string;
   site_name: string;
   completed_at: string;
-  // F-06 ownership claims
+  // F-06: Ownership routing — populated from surveys.solarpro_* columns.
+  // Null when the survey was created without a SolarPro handoff JWT.
+  // SolarPro ingest uses these to assign the project to the correct owner.
   solarpro_user_id: string | null;
   solarpro_project_id: string | null;
   solarpro_email: string | null;
@@ -89,7 +91,7 @@ export async function enqueueSurveyCompleteWebhook(params: {
   inspector_name: string;
   site_name: string;
   completed_at: string;
-  // F-06 ownership claims
+  // F-06: Ownership routing — read from surveys.solarpro_* columns
   solarpro_user_id?: string | null;
   solarpro_project_id?: string | null;
   solarpro_email?: string | null;
@@ -108,7 +110,7 @@ export async function enqueueSurveyCompleteWebhook(params: {
     inspector_name: params.inspector_name,
     site_name: params.site_name,
     completed_at: params.completed_at,
-    // F-06 ownership claims
+    // F-06: Ownership routing fields
     solarpro_user_id: params.solarpro_user_id ?? null,
     solarpro_project_id: params.solarpro_project_id ?? null,
     solarpro_email: params.solarpro_email ?? null,

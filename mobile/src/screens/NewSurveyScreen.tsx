@@ -61,6 +61,10 @@ export default function NewSurveyScreen() {
 
   const [projectName, setProjectName] = useState("Mobile Site Survey");
   const [projectId, setProjectId] = useState<string | null>(null);
+  // F-06: Ownership routing — populated from handoff JWT claims
+  const [solarproUserId, setSolarproUserId] = useState<string | null>(null);
+  const [solarproProjectId, setSolarproProjectId] = useState<string | null>(null);
+  const [solarproEmail, setSolarproEmail] = useState<string | null>(null);
   const [inspectorName, setInspectorName] = useState(user?.fullName ?? "");
   const [siteName, setSiteName] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
@@ -68,10 +72,6 @@ export default function NewSurveyScreen() {
   const [metadata, setMetadata] = useState<SurveyMetadata | null>(null);
   const [notes, setNotes] = useState("");
   const [handoffLinked, setHandoffLinked] = useState(false);
-  // F-06 ownership claims captured from handoff token
-  const [solarproUserId, setSolarproUserId] = useState<string | null>(null);
-  const [solarproProjectId, setSolarproProjectId] = useState<string | null>(null);
-  const [solarproEmail, setSolarproEmail] = useState<string | null>(null);
   const [checklist, setChecklist] = useState<ChecklistItemDraft[]>(
     DEFAULT_CHECKLIST.map((c) => ({
       label: c.label,
@@ -208,7 +208,7 @@ export default function NewSurveyScreen() {
         if (handoff.metadata) {
           setMetadata(handoff.metadata as unknown as SurveyMetadata);
         }
-        // F-06: capture ownership claims from handoff
+        // F-06: Store ownership claims so they're sent with the survey record
         if (handoff.solarpro_user_id) setSolarproUserId(handoff.solarpro_user_id);
         if (handoff.solarpro_project_id) setSolarproProjectId(handoff.solarpro_project_id);
         if (handoff.solarpro_email) setSolarproEmail(handoff.solarpro_email);
@@ -282,10 +282,11 @@ export default function NewSurveyScreen() {
         status: "draft",
         device_id: deviceId,
         metadata: metadata ?? null,
-        // F-06 ownership claims forwarded from handoff token
-        solarpro_user_id: solarproUserId,
-        solarpro_project_id: solarproProjectId,
-        solarpro_email: solarproEmail,
+        // F-06: Ownership routing — attach handoff JWT claims to the survey record
+        // so the webhook payload carries them back to SolarPro for owner resolution.
+        solarpro_user_id: solarproUserId ?? undefined,
+        solarpro_project_id: solarproProjectId ?? undefined,
+        solarpro_email: solarproEmail ?? undefined,
         checklist: checklist.map((item, i) => ({
           label: item.label.trim() || `Checklist Item ${i + 1}`,
           status: item.status,

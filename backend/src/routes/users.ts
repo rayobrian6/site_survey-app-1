@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import {
   getUserById,
   getUserByEmail,
@@ -535,8 +534,10 @@ router.post('/logout', async (req: Request, res: Response) => {
 });
 
 // POST /api/users/solarpro-sso
-// Accepts a SolarPro handoff JWT and returns local auth tokens,
-// auto-provisioning a user account when needed.
+// Accepts a SolarPro handoff JWT, extracts the user identity claims,
+// and returns a partner JWT (creating the account if it doesn't exist yet).
+// This enables SolarPro website accounts to log into the survey app
+// without a separate registration step.
 router.post('/solarpro-sso', async (req: Request, res: Response) => {
   const { token } = req.body as { token?: string };
 
@@ -552,20 +553,20 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
     return;
   }
 
+  // Verify the handoff JWT using the shared SOLARPRO_HANDOFF_SECRET
   let decoded: {
     solarpro_user_id?: string;
     solarpro_email?: string;
     solarpro_name?: string;
     solarpro_project_id?: string;
-    email?: string;
-    name?: string;
     project_id?: string;
     jti?: string;
     exp?: number;
   };
 
   try {
-    const verified = jwt.verify(token, handoffSecret, { algorithms: ['HS256'] });
+    const jwtLib = require('jsonwebtoken') as typeof import('jsonwebtoken');
+    const verified = jwtLib.verify(token, handoffSecret, { algorithms: ['HS256'] });
     if (!verified || typeof verified !== 'object') {
       res.status(401).json({ error: 'Invalid SSO token' });
       return;
@@ -576,8 +577,8 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
     return;
   }
 
-  const ssoEmail = (decoded.solarpro_email ?? decoded.email ?? '').trim().toLowerCase();
-  const ssoName = (decoded.solarpro_name ?? decoded.name ?? 'SolarPro User').trim();
+  const ssoEmail = decoded.solarpro_email?.trim().toLowerCase();
+  const ssoName = decoded.solarpro_name?.trim() || 'SolarPro User';
 
   if (!ssoEmail) {
     res.status(422).json({ error: 'SSO token missing email claim' });
@@ -585,9 +586,13 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
   }
 
   try {
+    // Find existing user or auto-provision a new one
     let user = await getUserByEmail(ssoEmail);
 
     if (!user) {
+      // Auto-provision: create account with a random unusable password
+      // (user can set a real password via forgot-password if needed)
+      const { randomBytes } = require('crypto') as typeof import('crypto');
       const randomPassword = randomBytes(32).toString('hex');
       user = await createUser(ssoEmail, randomPassword, ssoName);
       authAudit('users.solarpro-sso.created', req, ssoEmail, { userId: user.id });
@@ -603,17 +608,14 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
     });
     const refreshToken = await issueRefreshToken(user.id);
 
-    // F-06: log ownership claims received via SSO
-    if (decoded.solarpro_user_id) {
-      console.log('[SSO OWNER STORED]', {
-        solarpro_user_id: decoded.solarpro_user_id,
-        solarpro_project_id: decoded.solarpro_project_id,
-        solarpro_email: decoded.solarpro_email,
-        local_user_id: user.id,
-      });
-    }
-
     authAudit('users.solarpro-sso.success', req, user.email, { status: 200, userId: user.id });
+
+    // F-06: [SSO OWNER STORED] log — confirms which SolarPro project context this session is for
+    if (decoded.solarpro_user_id) {
+      console.log(
+        `[SSO OWNER STORED] partnerUserId=${user.id} solarpro_user_id=${decoded.solarpro_user_id} solarpro_project_id=${decoded.solarpro_project_id ?? decoded.project_id ?? 'null'} email=${ssoEmail}`,
+      );
+    }
 
     res.json({
       token: accessToken,
@@ -624,6 +626,9 @@ router.post('/solarpro-sso', async (req: Request, res: Response) => {
         fullName: user.full_name,
         role: isAdmin ? 'admin' : 'user',
         createdAt: user.created_at,
+        // F-06: Return ownership context so the mobile app can attach it to surveys
+        solarpro_user_id: decoded.solarpro_user_id ?? null,
+        solarpro_project_id: decoded.solarpro_project_id ?? decoded.project_id ?? null,
       },
     });
   } catch (err) {

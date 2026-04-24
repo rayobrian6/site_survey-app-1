@@ -307,7 +307,8 @@ interface SurveyInput {
   metadata?: SurveyMetadata | null;
   checklist?: ChecklistItemInput[];
   photos?: PhotoInput[];
-  // F-06 ownership claims from SolarPro handoff JWT
+  // F-06: Ownership routing — populated from SolarPro handoff JWT claims
+  // so the webhook payload can carry them back for owner resolution.
   solarpro_user_id?: string | null;
   solarpro_project_id?: string | null;
   solarpro_email?: string | null;
@@ -985,11 +986,11 @@ router.post("/sync", async (req: Request, res: Response) => {
             survey.status ?? "submitted",
             device_id ?? survey.device_id ?? null,
             survey.metadata != null ? JSON.stringify(survey.metadata) : null,
-            // F-06 ownership claims
-            survey.solarpro_user_id ?? null,
-            survey.solarpro_project_id ?? null,
-            survey.solarpro_email ?? null,
-            survey.solarpro_org_id ?? null,
+            // F-06: Ownership routing claims from SolarPro handoff JWT
+            (survey as SurveyInput).solarpro_user_id ?? null,
+            (survey as SurveyInput).solarpro_project_id ?? null,
+            (survey as SurveyInput).solarpro_email ?? null,
+            (survey as SurveyInput).solarpro_org_id ?? null,
           );
 
           await client.query(
@@ -1030,10 +1031,10 @@ router.post("/sync", async (req: Request, res: Response) => {
                status = EXCLUDED.status,
                device_id = EXCLUDED.device_id,
                metadata = EXCLUDED.metadata,
-               solarpro_user_id = COALESCE(EXCLUDED.solarpro_user_id, surveys.solarpro_user_id),
+               solarpro_user_id    = COALESCE(EXCLUDED.solarpro_user_id,    surveys.solarpro_user_id),
                solarpro_project_id = COALESCE(EXCLUDED.solarpro_project_id, surveys.solarpro_project_id),
-               solarpro_email = COALESCE(EXCLUDED.solarpro_email, surveys.solarpro_email),
-               solarpro_org_id = COALESCE(EXCLUDED.solarpro_org_id, surveys.solarpro_org_id),
+               solarpro_email      = COALESCE(EXCLUDED.solarpro_email,      surveys.solarpro_email),
+               solarpro_org_id     = COALESCE(EXCLUDED.solarpro_org_id,     surveys.solarpro_org_id),
                synced_at = NOW(),
                updated_at = NOW()`,
 
@@ -1204,6 +1205,7 @@ router.post("/:id/complete", async (req: Request, res: Response) => {
       project_name: string;
       inspector_name: string;
       site_name: string;
+      // F-06: Ownership routing columns
       solarpro_user_id: string | null;
       solarpro_project_id: string | null;
       solarpro_email: string | null;
@@ -1237,13 +1239,16 @@ router.post("/:id/complete", async (req: Request, res: Response) => {
       inspector_name: survey.inspector_name,
       site_name: survey.site_name,
       completed_at: completedAt,
-      // F-06 ownership claims
+      // F-06: Ownership routing — read from survey record
       solarpro_user_id: survey.solarpro_user_id ?? null,
       solarpro_project_id: survey.solarpro_project_id ?? null,
       solarpro_email: survey.solarpro_email ?? null,
     });
 
-    await processWebhookQueue(10);
+    // NOTE: processWebhookQueue() was previously called inline here.
+    // Removed — the 30-second background worker handles delivery.
+    // Calling it inline blocked the HTTP response for up to 10 × fetch-timeout
+    // during SolarPro outages, causing the inspector's app to hang on submit.
 
     incrementMetric("webhook_enqueued_total");
 
@@ -1684,12 +1689,19 @@ router.post("/", async (req: Request, res: Response) => {
       body.status ?? "draft", // status
       body.device_id ?? null, // device_id
       body.metadata != null ? JSON.stringify(body.metadata) : null, // metadata
-      // F-06 ownership claims
-      body.solarpro_user_id ?? null,
-      body.solarpro_project_id ?? null,
-      body.solarpro_email ?? null,
-      body.solarpro_org_id ?? null,
+      // F-06: Ownership routing claims from SolarPro handoff JWT
+      body.solarpro_user_id ?? null,    // solarpro_user_id
+      body.solarpro_project_id ?? null, // solarpro_project_id
+      body.solarpro_email ?? null,      // solarpro_email
+      body.solarpro_org_id ?? null,     // solarpro_org_id
     );
+
+    // F-06: [SSO OWNER STORED] log — confirms ownership claims are being persisted
+    if (body.solarpro_user_id) {
+      console.log(
+        `[SSO OWNER STORED] surveyId=${surveyId} solarpro_user_id=${body.solarpro_user_id} solarpro_project_id=${body.solarpro_project_id ?? 'null'}`,
+      );
+    }
 
     const { rows } = await client.query(
       `INSERT INTO surveys
@@ -1727,10 +1739,10 @@ router.post("/", async (req: Request, res: Response) => {
          status = EXCLUDED.status,
          device_id = EXCLUDED.device_id,
          metadata = EXCLUDED.metadata,
-         solarpro_user_id = COALESCE(EXCLUDED.solarpro_user_id, surveys.solarpro_user_id),
+         solarpro_user_id    = COALESCE(EXCLUDED.solarpro_user_id,    surveys.solarpro_user_id),
          solarpro_project_id = COALESCE(EXCLUDED.solarpro_project_id, surveys.solarpro_project_id),
-         solarpro_email = COALESCE(EXCLUDED.solarpro_email, surveys.solarpro_email),
-         solarpro_org_id = COALESCE(EXCLUDED.solarpro_org_id, surveys.solarpro_org_id),
+         solarpro_email      = COALESCE(EXCLUDED.solarpro_email,      surveys.solarpro_email),
+         solarpro_org_id     = COALESCE(EXCLUDED.solarpro_org_id,     surveys.solarpro_org_id),
          updated_at = NOW()
        RETURNING id`,
       insertParams,
