@@ -6,9 +6,10 @@ import { pool } from "../database";
 import {
   inferRoboflowFromBuffer,
   inferRoboflowFromFile,
-} from "../utils/roboflowClient";
+} from "../utils/yoloClient";
 
-jest.mock("../utils/roboflowClient", () => ({
+jest.mock("../utils/yoloClient", () => ({
+  // yoloClient exports same function signatures as roboflowClient
   inferRoboflowFromBuffer: jest.fn(),
   inferRoboflowFromFile: jest.fn(),
   dataUrlToBuffer: jest.fn(() => Buffer.from("test-image")),
@@ -906,7 +907,7 @@ describe("POST /api/surveys/:id/photos/:photoId/infer", () => {
     expect(res.body.error?.field).toBe("photoId");
   });
 
-  it("returns Roboflow inference for a survey photo using data_url", async () => {
+  it("returns vision inference for a survey photo using data_url", async () => {
     const create = await request(app)
       .post("/api/surveys")
       .set("Authorization", authHeader)
@@ -933,7 +934,10 @@ describe("POST /api/surveys/:id/photos/:photoId/infer", () => {
     const photoId = rows[0].id as string;
 
     (inferRoboflowFromBuffer as jest.Mock).mockResolvedValueOnce({
-      predictions: [{ class: "panel", confidence: 0.97 }],
+      detections: [{ type: "main_panel", classId: 6, confidence: 0.97, bbox: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 }, bboxPixels: { x: 64, y: 64, width: 128, height: 128 }, imageWidth: 640, imageHeight: 640 }],
+      detectionCount: 1,
+      inferenceMs: 42,
+      modelPath: "models/solarvision.pt",
     });
 
     const res = await request(app)
@@ -949,7 +953,7 @@ describe("POST /api/surveys/:id/photos/:photoId/infer", () => {
     expect(res.body.survey_id).toBe(surveyId);
     expect(res.body.photo_id).toBe(photoId);
     expect(res.body.model_id).toBe("electrical-inspection/1");
-    expect(res.body.inference.predictions[0].class).toBe("panel");
+    expect(res.body.inference.detections[0].type).toBe("main_panel");
     expect(inferRoboflowFromBuffer).toHaveBeenCalledTimes(1);
     expect(inferRoboflowFromFile).not.toHaveBeenCalled();
 
@@ -969,7 +973,7 @@ describe("POST /api/surveys/:id/photos/:photoId/infer", () => {
     expect(Number(logRows[0].prediction_count)).toBe(1);
   });
 
-  it("returns 502 when Roboflow inference fails", async () => {
+  it("returns 502 when vision inference fails", async () => {
     const create = await request(app)
       .post("/api/surveys")
       .set("Authorization", authHeader)
@@ -996,7 +1000,7 @@ describe("POST /api/surveys/:id/photos/:photoId/infer", () => {
     const photoId = rows[0].id as string;
 
     (inferRoboflowFromBuffer as jest.Mock).mockRejectedValueOnce(
-      new Error("Roboflow unavailable"),
+      new Error("Vision service unavailable"),
     );
 
     const res = await request(app)
@@ -1005,7 +1009,7 @@ describe("POST /api/surveys/:id/photos/:photoId/infer", () => {
       .send({ model_id: "electrical-inspection/1" });
 
     expect(res.status).toBe(502);
-    expect(String(res.body.error || "")).toContain("Roboflow unavailable");
+    expect(String(res.body.error || "")).toContain("Vision service unavailable");
   });
 });
 
