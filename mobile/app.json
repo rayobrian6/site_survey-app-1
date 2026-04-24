@@ -4,6 +4,7 @@
     "slug": "site-survey-app",
     "version": "1.0.0",
     "orientation": "portrait",
+      "scheme": "sitesurvey",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "ios": {
