@@ -1,29 +1,47 @@
 {
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "local"
+  },
   "build": {
     "development": {
+      "developmentClient": true,
+      "distribution": "internal",
       "env": {
         "ORG_GRADLE_PROJECT_AsyncStorage_useNextStorage": "false"
-      },
-      "developmentClient": true,
-      "distribution": "internal"
+      }
     },
     "preview": {
       "channel": "preview",
+      "distribution": "internal",
+      "environment": "preview",
       "env": {
         "ORG_GRADLE_PROJECT_AsyncStorage_useNextStorage": "false"
       },
-      "environment": "preview",
-      "distribution": "internal",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "channel": "production",
+      "environment": "production",
       "env": {
         "ORG_GRADLE_PROJECT_AsyncStorage_useNextStorage": "false"
       },
-      "environment": "production"
+      "android": {
+        "buildType": "aab"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal"
+      }
     }
   }
 }
