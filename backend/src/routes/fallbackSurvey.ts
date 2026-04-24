@@ -243,14 +243,13 @@ router.post("/api/fallback-surveys/submit", async (req: Request, res: Response) 
 
     const claims = verifyToken(token, secret);
 
-    await ensureUsedTokensTable();
     await ensureFallbackSurveysTable();
 
     const client = await pool.connect();
     try {
       // Consume jti via shared tokenReplay service (outside transaction — 
       // the unique constraint is the real guard; txn is for fallback_surveys insert).
-      const replayResult = await consumeJti(claims.jti, "fallback");
+      const replayResult = await consumeJti(claims.jti!, "fallback");
       if (replayResult === "replayed") {
         res.status(409).json({
           error: {

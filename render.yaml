@@ -8,3 +8,39 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+
+      # ── Database ──────────────────────────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false   # set in Render dashboard
+
+      # ── Auth ──────────────────────────────────────────────────────────────
+      - key: JWT_SECRET
+        sync: false   # set in Render dashboard
+
+      - key: JWT_EXPIRES_IN
+        value: 12h
+
+      # ── SolarPro integration ───────────────────────────────────────────────
+      # MUST match SOLARPRO_HANDOFF_SECRET on SolarPro (Vercel) exactly
+      - key: SOLARPRO_HANDOFF_SECRET
+        sync: false   # set in Render dashboard
+
+      # MUST match SURVEY_WEBHOOK_SECRET on SolarPro (Vercel) exactly
+      - key: SURVEY_WEBHOOK_SECRET
+        sync: false   # set in Render dashboard
+
+      # URL that SolarPro calls when a survey is completed
+      - key: SOLARPRO_WEBHOOK_URL
+        sync: false   # e.g. https://solar-pro.app/api/webhooks/survey-complete
+
+      # ── CORS ──────────────────────────────────────────────────────────────
+      - key: ALLOWED_ORIGINS
+        sync: false   # comma-separated: https://solar-pro.app,https://...
+
+      # ── Rate limiting / lockout ───────────────────────────────────────────
+      - key: SIGNIN_MAX_FAILURES
+        value: "5"
+      - key: SIGNIN_WINDOW_MINUTES
+        value: "15"
+      - key: SIGNIN_LOCK_MINUTES
+        value: "15"

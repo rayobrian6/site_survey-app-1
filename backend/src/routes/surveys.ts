@@ -41,6 +41,8 @@ async function ensureSurveySoftDeleteColumn(): Promise<void> {
         await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS category_name VARCHAR(100)`);
         await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS metadata JSONB`);
         await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+          await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS submitted_by_user_id UUID`);
+          await pool.query(`CREATE INDEX IF NOT EXISTS surveys_submitted_by_user_id_idx ON surveys (submitted_by_user_id)`);
       } catch (error) {
         console.warn("survey schema migration skipped:", error);
       }
@@ -991,6 +993,8 @@ router.post("/sync", async (req: Request, res: Response) => {
             (survey as SurveyInput).solarpro_project_id ?? null,
             (survey as SurveyInput).solarpro_email ?? null,
             (survey as SurveyInput).solarpro_org_id ?? null,
+              // F-14: track which authenticated user created this survey (safe deletion)
+              req.authUser?.userId ?? null,     // submitted_by_user_id
           );
 
           await client.query(
@@ -1000,10 +1004,12 @@ router.post("/sync", async (req: Request, res: Response) => {
                 latitude, longitude, gps_accuracy, location,
                 survey_date, notes, status, device_id, metadata,
                 solarpro_user_id, solarpro_project_id, solarpro_email, solarpro_org_id,
+                submitted_by_user_id,
                 synced_at)
              VALUES
                ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
                 ${locationSql},
+                $${insertParams.length - 9},
                 $${insertParams.length - 8},
                 $${insertParams.length - 7},
                 $${insertParams.length - 6},
@@ -1035,6 +1041,7 @@ router.post("/sync", async (req: Request, res: Response) => {
                solarpro_project_id = COALESCE(EXCLUDED.solarpro_project_id, surveys.solarpro_project_id),
                solarpro_email      = COALESCE(EXCLUDED.solarpro_email,      surveys.solarpro_email),
                solarpro_org_id     = COALESCE(EXCLUDED.solarpro_org_id,     surveys.solarpro_org_id),
+               submitted_by_user_id = COALESCE(surveys.submitted_by_user_id, EXCLUDED.submitted_by_user_id),
                synced_at = NOW(),
                updated_at = NOW()`,
 
@@ -1694,6 +1701,8 @@ router.post("/", async (req: Request, res: Response) => {
       body.solarpro_project_id ?? null, // solarpro_project_id
       body.solarpro_email ?? null,      // solarpro_email
       body.solarpro_org_id ?? null,     // solarpro_org_id
+        // F-14: track which authenticated user created this survey (safe deletion)
+        req.authUser?.userId ?? null,     // submitted_by_user_id
     );
 
     // F-06: [SSO OWNER STORED] log — confirms ownership claims are being persisted
@@ -1709,10 +1718,12 @@ router.post("/", async (req: Request, res: Response) => {
           inspector_name, site_name, site_address,
           latitude, longitude, gps_accuracy, location,
           survey_date, notes, status, device_id, metadata,
-          solarpro_user_id, solarpro_project_id, solarpro_email, solarpro_org_id)
+          solarpro_user_id, solarpro_project_id, solarpro_email, solarpro_org_id,
+          submitted_by_user_id)
        VALUES
          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
           ${locationSql},
+          $${insertParams.length - 9},
           $${insertParams.length - 8},
           $${insertParams.length - 7},
           $${insertParams.length - 6},
@@ -1743,6 +1754,7 @@ router.post("/", async (req: Request, res: Response) => {
          solarpro_project_id = COALESCE(EXCLUDED.solarpro_project_id, surveys.solarpro_project_id),
          solarpro_email      = COALESCE(EXCLUDED.solarpro_email,      surveys.solarpro_email),
          solarpro_org_id     = COALESCE(EXCLUDED.solarpro_org_id,     surveys.solarpro_org_id),
+         submitted_by_user_id = COALESCE(surveys.submitted_by_user_id, EXCLUDED.submitted_by_user_id),
          updated_at = NOW()
        RETURNING id`,
       insertParams,

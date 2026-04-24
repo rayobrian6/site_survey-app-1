@@ -659,7 +659,14 @@ router.delete('/me', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    await pool.query('DELETE FROM surveys WHERE inspector_name = $1', [user.full_name]);
+    // F-14 fix: delete only surveys explicitly owned by this user (submitted_by_user_id).
+    // inspector_name is a free-text field and NOT a reliable ownership key — a name collision
+    // could silently wipe another user's surveys. submitted_by_user_id is set on survey
+    // creation when the request is authenticated (see surveys.ts POST /).
+    await pool.query(
+      'DELETE FROM surveys WHERE submitted_by_user_id = $1',
+      [userId],
+    );
 
     await deleteRefreshTokensByUserId(userId);
     const deleted = await deleteUserById(userId);
