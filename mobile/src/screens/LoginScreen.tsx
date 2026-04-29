@@ -106,7 +106,19 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 style={styles.ssoButton}
-                onPress={() => Linking.openURL('https://solarpro.solutions/mobile-login')}
+                onPress={() => {
+                  // v60.5 SSO: OAuth-style authorize endpoint.
+                  // Generate a CSRF state nonce (echoed back by SolarPro in the
+                  // redirect). The JWT itself is HMAC-signed, so state is
+                  // belt-and-suspenders CSRF protection for the browser hop.
+                  const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+                  const redirectUri = encodeURIComponent('sitesurvey://login');
+                  const authorizeUrl =
+                    `https://solarpro.solutions/api/auth/authorize` +
+                    `?redirect_uri=${redirectUri}` +
+                    `&state=${state}`;
+                  Linking.openURL(authorizeUrl);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Sign in with SolarPro account"
               >
